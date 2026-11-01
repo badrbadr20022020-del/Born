@@ -656,4 +656,11 @@ if __name__ == "__main__":
 
     print("Bot starting...")
     app = build_application()
+    
+    # حل مشكلة Event Loop في إصدارات Python الحديثة
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
     app.run_polling()
