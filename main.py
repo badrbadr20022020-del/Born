@@ -15,7 +15,7 @@ from telegram.ext import (
 from config import (
     BOT_TOKEN, ADMIN_ID, DATABASE_FILE,
     GARENA_BASE_URL, GARENA_APP_ID, GARENA_USER_AGENT,
-    TIMEZONE, START_TIME_HOUR, INTERVAL_SECONDS,
+    TIMEZONE, START_TIME_HOUR, START_TIME_MINUTE, INTERVAL_SECONDS,
     MAX_EMAILS, MAX_DAILY_SENDS_PER_EMAIL,
     REQUIRED_REFERRALS_PER_BURN, MAX_BIND_SEARCHES_PER_DAY,
     LOG_LEVEL, LOG_FORMAT,
@@ -83,8 +83,8 @@ async def burn_loop(user_id: int, context: ContextTypes.DEFAULT_TYPE):
         now = datetime.now(TZ)
         today = now.strftime("%Y-%m-%d")
 
-        # ---- daily reset ----
-        if now.hour >= START_TIME_HOUR and last_reset_day != today:
+        # ---- تصفير العداد اليومي (الساعة 3:59) ----
+        if (now.hour > START_TIME_HOUR or (now.hour == START_TIME_HOUR and now.minute >= START_TIME_MINUTE)) and last_reset_day != today:
             otp_service.reset_counts(user_id)
             db.set_last_reset(user_id, today)
             last_reset_day = today
@@ -96,13 +96,13 @@ async def burn_loop(user_id: int, context: ContextTypes.DEFAULT_TYPE):
         if otp_service.all_reached_limit(user_id):
             await context.bot.send_message(
                 chat_id=user_id,
-                text=f"All emails reached {MAX_DAILY_SENDS_PER_EMAIL}. Waiting for reset at {START_TIME_HOUR}:00.",
+                text=f"All emails reached {MAX_DAILY_SENDS_PER_EMAIL}. Waiting for reset at {START_TIME_HOUR:02d}:{START_TIME_MINUTE:02d}.",
             )
             await asyncio.sleep(300)
             continue
 
-        # ---- إرسال كل الإيميلات بدون أي رسالة Telegram أثناء العملية ----
-        results = []  # (email, success, new_count)
+        # ---- إرسال كل الإيميلات بدون أي رسائل أثناء العملية ----
+        results = []
         for email in emails:
             if not is_running(user_id):
                 return
@@ -115,7 +115,7 @@ async def burn_loop(user_id: int, context: ContextTypes.DEFAULT_TYPE):
             otp_service.set_count(user_id, email, new_count)
             results.append((email, success, new_count))
 
-            await asyncio.sleep(INTERVAL_SECONDS)  # 1s بين كل إيميل
+            await asyncio.sleep(INTERVAL_SECONDS)  # 1 ثانية بين كل إيميل
 
         # ---- رسالة ملخص واحدة فقط بعد ما تخلص الدورة كاملة ----
         if results and is_running(user_id):
